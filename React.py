@@ -31,40 +31,65 @@ my_sender(1)
 my_sender // my_messenger // my_receiver	
 '''
 
+from functools import update_wrapper
+
 def call(*args, **kwargs):
-	return args, kwargs
-		
-class sender:
-	def __init__(self, func):
-		self.func = func
-		self.receivers = set()
-		
-	def __call__(self, *args, **kwargs):
-	 	call = self.func(*args, **kwargs)
-		if call is None: return
-		args, kwargs = call
-		for receiver in self.receivers:
-			receiver(*args, **kwargs)
-		
-	def __rshift__(self, target):
-		self.receivers.add(target)
-		target.senders.add(self)
-		return target
-		
-	def __floordiv__(self, target):
-		self.receivers.remove(target)
-		target.senders.remove(self)
-		return target
+    return args, kwargs
 
-class receiver:
-	def __init__(self, func):
-		self.func = func
-		self.senders = set()
-	
-	def __call__(self, *args, **kwargs):
-		self.func(*args, **kwargs)
+class sendercontext(object):
+    def __init__(self, func):
+        update_wrapper(self, func)
+        self.func = func
+        self.receivers = set()
+        
+    def __call__(self, *args, **kwargs):
+        call = self.func(*args, **kwargs)
+        if call is None: return
+        args, kwargs = call
+        for receiver in self.receivers:
+            receiver(*args, **kwargs)
+        
+    def __rshift__(self, target):
+        self.receivers.add(target)
+        target.senders.add(self)
+        return target
+        
+    def __floordiv__(self, target):
+        self.receivers.remove(target)
+        target.senders.remove(self)
+        return target
 
-class messenger(sender, receiver):
-	def __init__(self, func):
-		receiver.__init__(self, func)
-		sender.__init__(self, func)
+class sender(sendercontext):
+    def __get__(self, inst, type):
+        func = self.func.__get__(inst, type)
+        context = sendercontext(func)
+        setattr(inst, func.__name__, context)
+        return context
+        
+class receivercontext(object):
+    def __init__(self, func):
+        update_wrapper(self, func)
+        self.func = func
+        self.senders = set()
+    
+    def __call__(self, *args, **kwargs):
+        self.func(*args, **kwargs)
+    
+class receiver(receivercontext):
+    def __get__(self, inst, type):
+        func = self.func.__get__(inst, type)
+        context = receivercontext(func)
+        setattr(inst, func.__name__, context)
+        return context
+
+class messengercontext(sendercontext, receivercontext):
+    def __init__(self, func):
+        sendercontext.__init__(self, func)
+        receivercontext.__init__(self, func)
+        
+class messenger(messengercontext):
+    def __get__(self, inst, type):
+        func = self.func.__get__(inst, type)
+        context = messengercontext(func)
+        setattr(inst, func.__name__, context)
+        return context
