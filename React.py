@@ -36,11 +36,22 @@ from functools import update_wrapper
 def call(*args, **kwargs):
     return args, kwargs
     
-class sender(object):
-    def __init__(self, func, bound = False):
+class wrapper(object):
+    def __init__(self, func, bound=False):
         update_wrapper(self, func)
-        self.bound = bound
         self.func = func
+        self.bound = bound
+        
+    def __get__(self, inst, type):
+        if self.bound: return self
+        func = self.func.__get__(inst, type)
+        context = self.__class__(func, bound=True)
+        setattr(inst, func.__name__, context)
+        return context
+    
+class sender(wrapper):
+    def __init__(self, func, bound=False):
+        wrapper.__init__(self, func, bound)
         self.receivers = set()
         
     def __call__(self, *args, **kwargs):
@@ -60,38 +71,15 @@ class sender(object):
         target.senders.remove(self)
         return target
         
-    def __get__(self, inst, type):
-        if self.bound: return self
-        func = self.func.__get__(inst, type)
-        context = sender(func, bound = True)
-        setattr(inst, func.__name__, context)
-        return context
-        
-class receiver(object):
-    def __init__(self, func, bound = False):
-        update_wrapper(self, func)
-        self.bound = bound
-        self.func = func
+class receiver(wrapper):
+    def __init__(self, func, bound=False):
+        wrapper.__init__(self, func, bound)
         self.senders = set()
     
     def __call__(self, *args, **kwargs):
         self.func(*args, **kwargs)
         
-    def __get__(self, inst, type):
-        if self.bound: return self
-        func = self.func.__get__(inst, type)
-        context = receiver(func, bound = True)
-        setattr(inst, func.__name__, context)
-        return context
-        
 class messenger(sender, receiver):
     def __init__(self, func, bound = False):
         sender.__init__(self, func)
         receiver.__init__(self, func)
-        
-    def __get__(self, inst, type):
-        if self.bound: return self
-        func = self.func.__get__(inst, type)
-        context = messenger(func, bound = True)
-        setattr(inst, func.__name__, context)
-        return context
