@@ -35,10 +35,11 @@ from functools import update_wrapper
 
 def call(*args, **kwargs):
     return args, kwargs
-
-class sendercontext(object):
-    def __init__(self, func):
+    
+class sender(object):
+    def __init__(self, func, bound = False):
         update_wrapper(self, func)
+        self.bound = bound
         self.func = func
         self.receivers = set()
         
@@ -48,7 +49,7 @@ class sendercontext(object):
         args, kwargs = call
         for receiver in self.receivers:
             receiver(*args, **kwargs)
-        
+            
     def __rshift__(self, target):
         self.receivers.add(target)
         target.senders.add(self)
@@ -58,38 +59,39 @@ class sendercontext(object):
         self.receivers.remove(target)
         target.senders.remove(self)
         return target
-
-class sender(sendercontext):
+        
     def __get__(self, inst, type):
+        if self.bound: return self
         func = self.func.__get__(inst, type)
-        context = sendercontext(func)
+        context = sender(func, bound = True)
         setattr(inst, func.__name__, context)
         return context
         
-class receivercontext(object):
-    def __init__(self, func):
+class receiver(object):
+    def __init__(self, func, bound = False):
         update_wrapper(self, func)
+        self.bound = bound
         self.func = func
         self.senders = set()
     
     def __call__(self, *args, **kwargs):
         self.func(*args, **kwargs)
-    
-class receiver(receivercontext):
+        
     def __get__(self, inst, type):
+        if self.bound: return self
         func = self.func.__get__(inst, type)
-        context = receivercontext(func)
+        context = receiver(func, bound = True)
         setattr(inst, func.__name__, context)
         return context
-
-class messengercontext(sendercontext, receivercontext):
-    def __init__(self, func):
-        sendercontext.__init__(self, func)
-        receivercontext.__init__(self, func)
         
-class messenger(messengercontext):
+class messenger(sender, receiver):
+    def __init__(self, func, bound = False):
+        sender.__init__(self, func)
+        receiver.__init__(self, func)
+        
     def __get__(self, inst, type):
+        if self.bound: return self
         func = self.func.__get__(inst, type)
-        context = messengercontext(func)
+        context = messenger(func, bound = True)
         setattr(inst, func.__name__, context)
         return context
