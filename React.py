@@ -48,6 +48,7 @@ class binding(object):
         
     def __setstate__(self, state):
         type, inst, name = state
+        type = import_module(type) if isinstance(type, str) else type
         func = getattr(type, name).binding.func
         self.func = func.__get__(inst, type) if inst else func
 
