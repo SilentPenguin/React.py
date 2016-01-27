@@ -45,7 +45,7 @@ class wrapper(object):
         return self.func(*args, **kwargs)
         
     def __get__(self, inst, type):
-        if self.inst or not inst: return self
+        if not inst or self.__class__ is inst.__class__: return self
         context = self.__class__(self.func, inst, type)
         setattr(inst, self.__name__, context)
         return context
@@ -81,3 +81,9 @@ class messenger(sender, receiver):
     def __init__(self, *args):
         sender.__init__(self, *args)
         receiver.__init__(self, *args)
+        
+class T:
+    @sender
+    def f(self, i): return call(i)
+    @receiver
+    def b(self, i): print i
