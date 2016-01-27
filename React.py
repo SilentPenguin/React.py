@@ -37,41 +37,40 @@ from importlib import import_module
 def call(*args, **kwargs):
     return args, kwargs
 
+class binding(object):
+    def __init__(self, func, inst, type):
+        self.func = func.__get__(inst, type) if inst else func
+        
+    def __getstate__(self):
+        return (self.func.__self__ if hasattr(self.func, '__self__') else self.func.__module__,
+                self.func.__name__)
+        
+    def __setstate__(self, state):
+        inst, name = state
+        inst = import_module(inst) if type(inst) is str else inst
+        self.func = getattr(inst, name).binding.func
+
 class wrapper(object):
     def __init__(self, func, inst=None, type=None):
         update_wrapper(self, func)
-        self.inst = inst
-        self.func = func.__get__(inst, type) if inst else func
+        self.binding = binding(func, inst, type)
         
     def __call__(self, *args, **kwargs):
-        return self.func(*args, **kwargs)
+        return self.binding.func(*args, **kwargs)
         
     def __get__(self, inst, type):
         if not inst or self.__class__ is inst.__class__: return self
-        context = self.__class__(self.func, inst, type)
-        setattr(inst, self.__name__, context)
-        return context
-    
-    def __getstate__(self):
-        return (self.func.im_self if self.inst else self.func.__module__,
-                self.__name__,
-                self.senders if hasattr(self, 'senders') else None,
-                self.receivers if hasattr(self,'receivers') else None)
+        wrapper = self.__class__(self.binding.func, inst, type)
+        setattr(inst, self.__name__, wrapper)
+        return wrapper
         
-    def __setstate__(self, state):
-        inst, name, senders, receivers = state
-        self.inst = import_module(inst) if type(inst) is str else inst
-        self.func = getattr(self.inst, name).func
-        if senders is not None: self.senders = senders
-        if receivers is not None: self.receivers = receivers
-    
 class sender(wrapper):
     def __init__(self, *args):
         wrapper.__init__(self, *args)
         self.receivers = set()
         
     def __call__(self, *args, **kwargs):
-        call = self.func(*args, **kwargs)
+        call = self.binding.func(*args, **kwargs)
         if call is None: return
         args, kwargs = call
         for receiver in self.receivers:
