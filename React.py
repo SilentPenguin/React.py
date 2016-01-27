@@ -32,28 +32,16 @@ my_sender // my_messenger // my_receiver
 '''
 
 from functools import update_wrapper
+from importlib import import_module
 
 def call(*args, **kwargs):
     return args, kwargs
-    
-class binding(object):
-    def __init__(self, func, inst, type):
-        self.func = func.__get__(inst, type)
-        
-    def __call__(self, *args, **kwargs):
-        return self.func(*args, **kwargs)
-        
-    def __getstate__(self):
-        return self.func.im_self, self.func.im_func.func_name
-        
-    def __setstate__(self, state):
-        inst, name = state
-        self.func = getattr(inst, name).func
 
 class wrapper(object):
     def __init__(self, func, inst=None, type=None):
         update_wrapper(self, func)
-        self.func = binding(func, inst, type) if inst else func
+        self.inst = inst
+        self.func = func.__get__(inst, type) if inst else func
         
     def __call__(self, *args, **kwargs):
         return self.func(*args, **kwargs)
@@ -63,6 +51,19 @@ class wrapper(object):
         context = self.__class__(self.func, inst, type)
         setattr(inst, self.__name__, context)
         return context
+    
+    def __getstate__(self):
+        return (self.func.im_self if self.inst else self.func.__module__,
+                self.__name__,
+                self.senders if hasattr(self, 'senders') else None,
+                self.receivers if hasattr(self,'receivers') else None)
+        
+    def __setstate__(self, state):
+        inst, name, senders, receivers = state
+        self.inst = import_module(inst) if type(inst) is str else inst
+        self.func = getattr(self.inst, name).func
+        if senders is not None: self.senders = senders
+        if receivers is not None: self.receivers = receivers
     
 class sender(wrapper):
     def __init__(self, *args):
