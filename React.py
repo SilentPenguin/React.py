@@ -42,13 +42,14 @@ class binding(object):
         self.func = func.__get__(inst, type) if inst else func
         
     def __getstate__(self):
-        return (self.func.__self__ if hasattr(self.func, '__self__') else self.func.__module__,
+        return (self.func.__self__.__class__ if hasattr(self.func, '__self__') else self.func.__module__,
+                self.func.__self__ if hasattr(self.func, '__self__') else None,
                 self.func.__name__)
         
     def __setstate__(self, state):
-        inst, name = state
-        inst = import_module(inst) if type(inst) is str else inst
-        self.func = getattr(inst, name).binding.func
+        type, inst, name = state
+        func = getattr(type, name).binding.func
+        self.func = func.__get__(inst, type) if inst else func
 
 class wrapper(object):
     def __init__(self, func, inst=None, type=None):
