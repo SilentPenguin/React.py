@@ -37,21 +37,22 @@ def call(*args, **kwargs):
     return args, kwargs
     
 class wrapper(object):
-    def __init__(self, func, bound=False):
+    def __init__(self, func, inst=None, type=None):
         update_wrapper(self, func)
-        self.func = func
-        self.bound = bound
+        self.func = func.__get__(inst, type) if inst else func
+        
+    def __call__(self, *args, **kwargs):
+        return self.func(*args, **kwargs)
         
     def __get__(self, inst, type):
-        if self.bound: return self
-        func = self.func.__get__(inst, type)
-        context = self.__class__(func, bound=True)
-        setattr(inst, func.__name__, context)
+        if self.inst or not inst: return self
+        context = self.__class__(self.func, inst, type)
+        setattr(inst, self.__name__, context)
         return context
     
 class sender(wrapper):
-    def __init__(self, func, bound=False):
-        wrapper.__init__(self, func, bound)
+    def __init__(self, *args):
+        wrapper.__init__(self, *args)
         self.receivers = set()
         
     def __call__(self, *args, **kwargs):
@@ -72,14 +73,11 @@ class sender(wrapper):
         return target
         
 class receiver(wrapper):
-    def __init__(self, func, bound=False):
-        wrapper.__init__(self, func, bound)
+    def __init__(self, *args):
+        wrapper.__init__(self, *args)
         self.senders = set()
-    
-    def __call__(self, *args, **kwargs):
-        self.func(*args, **kwargs)
         
 class messenger(sender, receiver):
-    def __init__(self, func, bound = False):
-        sender.__init__(self, func)
-        receiver.__init__(self, func)
+    def __init__(self, *args):
+        sender.__init__(self, *args)
+        receiver.__init__(self, *args)
