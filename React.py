@@ -81,9 +81,3 @@ class messenger(sender, receiver):
     def __init__(self, *args):
         sender.__init__(self, *args)
         receiver.__init__(self, *args)
-        
-class T:
-    @sender
-    def f(self, i): return call(i)
-    @receiver
-    def b(self, i): print i
